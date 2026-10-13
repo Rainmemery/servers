@@ -389,7 +389,20 @@ def git_show(repo: git.Repo, revision: str) -> str:
         # git prints /dev/null for the missing side of an added or deleted file.
         a_path = "/dev/null" if d.new_file or d.a_path is None else d.a_path
         b_path = "/dev/null" if d.deleted_file or d.b_path is None else d.b_path
-        output.append(f"\n--- {a_path}\n+++ {b_path}\n")
+        # git prefixes the paths with a/ and b/ in the diff header so the
+        # output can be applied by `git apply` / `patch` (see issue #5107).
+        # The `diff --git` line always prints the real paths with a/ and b/
+        # prefixes (even when one side is /dev/null, which only appears in the
+        # ---/+++ header lines), matching `git show`.
+        a_header = "/dev/null" if a_path == "/dev/null" else f"a/{a_path}"
+        b_header = "/dev/null" if b_path == "/dev/null" else f"b/{b_path}"
+        a_name = a_path if a_path != "/dev/null" else b_path
+        b_name = b_path if b_path != "/dev/null" else a_path
+        output.append(
+            f"\ndiff --git a/{a_name} b/{b_name}\n"
+            f"--- {a_header}\n"
+            f"+++ {b_header}\n"
+        )
         if d.diff is None:
             continue  # pragma: no cover  # with create_patch=True GitPython always assigns the patch as bytes
         if isinstance(d.diff, bytes):
